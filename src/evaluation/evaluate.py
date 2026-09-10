@@ -1,7 +1,11 @@
 import pandas as pd
 
 from src.models.model_runner import run_model
-from src.evaluators.evaluator import exact_match
+from src.evaluators.evaluator import (
+    exact_match,
+    semantic_similarity
+)
+from src.evaluators.judge import judge_response
 
 
 def evaluate_model(model_name, dataset):
@@ -20,10 +24,24 @@ def evaluate_model(model_name, dataset):
             context=sample["context"]
         )
 
-        # Evaluate response
-        score = exact_match(
+        # Exact match evaluation
+        exact_score = exact_match(
             predicted=response,
             expected=sample["expected_answer"]
+        )
+
+        # Semantic similarity evaluation
+        semantic_score = semantic_similarity(
+            predicted=response,
+            expected=sample["expected_answer"]
+        )
+
+        # Judge evaluation
+        judge_scores = judge_response(
+            question=sample["question"],
+            context=sample["context"],
+            expected_answer=sample["expected_answer"],
+            model_response=response
         )
 
         # Store result
@@ -34,7 +52,12 @@ def evaluate_model(model_name, dataset):
             "question": sample["question"],
             "expected_answer": sample["expected_answer"],
             "model_response": response,
-            "score": score
+            "exact_match": exact_score,
+            "semantic_similarity": semantic_score,
+            "judge_correctness": judge_scores["correctness"],
+            "judge_relevance": judge_scores["relevance"],
+            "judge_faithfulness": judge_scores["faithfulness"],
+            "judge_score": judge_scores["judge_score"]
         })
 
     return pd.DataFrame(results)

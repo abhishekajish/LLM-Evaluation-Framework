@@ -45,11 +45,17 @@ def main():
 
         all_results.append(results)
 
-        accuracy = results["score"].mean()
+        exact_accuracy = results["exact_match"].mean()
+        semantic_accuracy = results["semantic_similarity"].mean()
 
         print(
-            f"{model} accuracy: "
-            f"{accuracy:.2%}"
+            f"{model} exact match: "
+            f"{exact_accuracy:.2%}"
+        )
+
+        print(
+            f"{model} semantic similarity: "
+            f"{semantic_accuracy:.2%}"
         )
 
     # -----------------------------
