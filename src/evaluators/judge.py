@@ -1,3 +1,12 @@
+import requests
+import json
+
+
+OLLAMA_URL = "http://localhost:11434/api/generate"
+
+JUDGE_MODEL = "gemma3:1b"
+
+
 def judge_response(
     question,
     context,
@@ -5,48 +14,105 @@ def judge_response(
     model_response
 ):
     """
-    Evaluate a model response using a deterministic
-    rule-based judge.
+    Evaluate a model response using a local LLM judge.
 
-    This acts as a placeholder for a real
-    LLM-as-a-Judge implementation.
+    The judge evaluates:
+    - correctness
+    - relevance
+    - faithfulness
+
+    Gemma 3 1B is used locally through Ollama.
     """
 
-    response = model_response.lower().strip()
-    expected = expected_answer.lower().strip()
+    prompt = f"""
+You are an objective LLM evaluator.
 
-    # Basic correctness check
-    if response == expected:
-        correctness = 1.0
+Evaluate the model response against the question,
+expected answer, and context.
 
-    elif expected in response:
-        correctness = 0.8
+Question:
+{question}
 
-    else:
-        correctness = 0.0
+Context:
+{context}
 
-    # Basic context faithfulness check
-    if context:
+Expected Answer:
+{expected_answer}
 
-        context_lower = context.lower()
+Model Response:
+{model_response}
 
-        if expected in context_lower and expected in response:
-            faithfulness = 1.0
+Score the response on these dimensions:
 
-        elif expected in response:
-            faithfulness = 0.8
+1. correctness
+2. relevance
+3. faithfulness
 
-        else:
-            faithfulness = 0.0
+Each score must be between 0 and 1.
 
-    else:
-        faithfulness = correctness
+Return ONLY valid JSON in exactly this format:
 
-    # Relevance is approximated using correctness
-    relevance = correctness
+{{
+    "correctness": 0.0,
+    "relevance": 0.0,
+    "faithfulness": 0.0
+}}
 
-    # Overall judge score
-    overall = (
+Do not include explanations.
+Do not include markdown.
+"""
+
+    payload = {
+        "model": JUDGE_MODEL,
+        "prompt": prompt,
+        "stream": False,
+        "format": "json"
+    }
+
+    response = requests.post(
+        OLLAMA_URL,
+        json=payload,
+        timeout=300
+    )
+
+    response.raise_for_status()
+
+    result = response.json()
+
+    judge_result = json.loads(
+        result["response"]
+    )
+
+    correctness = float(
+        judge_result.get("correctness", 0.0)
+    )
+
+    relevance = float(
+        judge_result.get("relevance", 0.0)
+    )
+
+    faithfulness = float(
+        judge_result.get("faithfulness", 0.0)
+    )
+
+    # Keep scores safely within 0-1.
+    correctness = max(
+        0.0,
+        min(1.0, correctness)
+    )
+
+    relevance = max(
+        0.0,
+        min(1.0, relevance)
+    )
+
+    faithfulness = max(
+        0.0,
+        min(1.0, faithfulness)
+    )
+
+    # Weighted overall judge score.
+    judge_score = (
         0.4 * correctness
         + 0.3 * relevance
         + 0.3 * faithfulness
@@ -56,5 +122,5 @@ def judge_response(
         "correctness": round(correctness, 4),
         "relevance": round(relevance, 4),
         "faithfulness": round(faithfulness, 4),
-        "judge_score": round(overall, 4)
+        "judge_score": round(judge_score, 4)
     }

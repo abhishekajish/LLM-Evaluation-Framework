@@ -9,9 +9,17 @@ def normalize_text(text):
 
     text = text.lower().strip()
 
-    text = re.sub(r"[^\w\s$%.-]", "", text)
+    text = re.sub(
+        r"[^\w\s$%.-]",
+        "",
+        text
+    )
 
-    text = re.sub(r"\s+", " ", text)
+    text = re.sub(
+        r"\s+",
+        " ",
+        text
+    )
 
     return text
 
@@ -33,14 +41,13 @@ def extract_facts(text):
     # ---------------------------------
 
     monetary_values = re.findall(
-        r"\$\s*\d+(?:\.\d+)?",
+        r"\$\s*\d+(?:\.\d+)?(?:\s*(?:million|billion|thousand|k))?",
         text
     )
 
     for value in monetary_values:
-        facts.add(
-            value.replace(" ", "")
-        )
+        value = re.sub(r"\s+", " ", value.strip())
+        facts.add(value)
 
     # ---------------------------------
     # Percentages
@@ -72,55 +79,74 @@ def extract_facts(text):
 
 def hallucination_score(context, response):
     """
-    Estimate how well a model response is supported
-    by the supplied context.
+    Estimate whether factual information in a response
+    is supported by the provided context.
 
     Returns:
-        1.0 -> response is fully supported
-        0.0 -> response contains unsupported factual values
+        1.0 -> fully supported
+        0.0 -> unsupported factual information
+        NaN -> no context available
     """
 
     if not context:
         return math.nan
 
-    context = normalize_text(context)
-    response = normalize_text(response)
+    context_normalized = normalize_text(context)
+    response_normalized = normalize_text(response)
 
-    if not response:
+    if not response_normalized:
         return 0.0
 
     # ---------------------------------
-    # Check factual values
+    # Extract factual values
     # ---------------------------------
 
-    context_facts = extract_facts(context)
-    response_facts = extract_facts(response)
+    context_facts = extract_facts(
+        context_normalized
+    )
 
-    unsupported_facts = response_facts - context_facts
+    response_facts = extract_facts(
+        response_normalized
+    )
 
-    # Any new factual value not found in the
-    # context is treated as a hallucination.
+    unsupported_facts = (
+        response_facts - context_facts
+    )
+
+    # Any unsupported factual value
+    # indicates a potential hallucination.
     if unsupported_facts:
         return 0.0
 
-    # ---------------------------------
-    # Factual values are supported
-    # ---------------------------------
-
+    # If factual values exist and all
+    # are supported, score as fully grounded.
     if response_facts:
         return 1.0
 
     # ---------------------------------
-    # No factual values detected
+    # Lexical grounding
     # ---------------------------------
 
-    response_words = set(response.split())
-    context_words = set(context.split())
-
-    supported_words = response_words.intersection(
-        context_words
+    response_words = set(
+        response_normalized.split()
     )
 
-    score = len(supported_words) / len(response_words)
+    context_words = set(
+        context_normalized.split()
+    )
+
+    if not response_words:
+        return 0.0
+
+    supported_words = (
+        response_words.intersection(
+            context_words
+        )
+    )
+
+    score = (
+        len(supported_words)
+        / len(response_words)
+    )
 
     return round(score, 4)
