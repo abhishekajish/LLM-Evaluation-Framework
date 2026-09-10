@@ -1,5 +1,7 @@
-import requests
+﻿import requests
 import json
+
+from src.evaluators.evaluator import normalize_text
 
 
 OLLAMA_URL = "http://localhost:11434/api/generate"
@@ -14,52 +16,76 @@ def judge_response(
     model_response
 ):
     """
-    Evaluate a model response using a local LLM judge.
-
-    The judge evaluates:
-    - correctness
-    - relevance
-    - faithfulness
-
-    Gemma 3 1B is used locally through Ollama.
+    Evaluate a model response using a local LLM judge
+    with deterministic guardrails for exact answers.
     """
 
+    normalized_expected = normalize_text(
+        expected_answer
+    )
+
+    normalized_response = normalize_text(
+        model_response
+    )
+
+    if normalized_expected == normalized_response:
+        return {
+            "correctness": 1.0,
+            "relevance": 1.0,
+            "faithfulness": 1.0,
+            "judge_score": 1.0
+        }
+
     prompt = f"""
-You are an objective LLM evaluator.
+You are a strict but fair evaluator of an AI model response.
 
-Evaluate the model response against the question,
-expected answer, and context.
+Compare the MODEL RESPONSE against the EXPECTED ANSWER.
 
-Question:
+QUESTION:
 {question}
 
-Context:
+CONTEXT:
 {context}
 
-Expected Answer:
+EXPECTED ANSWER:
 {expected_answer}
 
-Model Response:
+MODEL RESPONSE:
 {model_response}
 
-Score the response on these dimensions:
+SCORING RULES:
 
-1. correctness
-2. relevance
-3. faithfulness
+CORRECTNESS:
+- 1.0 = substantively correct answer.
+- 0.5 = partially correct answer.
+- 0.0 = incorrect answer.
+- Do not require explanations unless explicitly requested.
+- Ignore capitalization and minor punctuation differences.
 
-Each score must be between 0 and 1.
+RELEVANCE:
+- 1.0 = directly answers the question.
+- 0.5 = partially addresses the question.
+- 0.0 = unrelated or answers a different question.
 
-Return ONLY valid JSON in exactly this format:
+FAITHFULNESS:
+- 1.0 = supported by the supplied context.
+- 0.5 = partially supported.
+- 0.0 = contradicts or invents information.
+- If no context is provided, judge consistency with the expected answer.
+
+IMPORTANT:
+- Short factual answers can receive 1.0.
+- Do not penalize concise answers.
+- Do not penalize punctuation.
+- Do not penalize capitalization.
+
+Return ONLY valid JSON:
 
 {{
-    "correctness": 0.0,
-    "relevance": 0.0,
-    "faithfulness": 0.0
+    "correctness": 1.0,
+    "relevance": 1.0,
+    "faithfulness": 1.0
 }}
-
-Do not include explanations.
-Do not include markdown.
 """
 
     payload = {
@@ -95,23 +121,10 @@ Do not include markdown.
         judge_result.get("faithfulness", 0.0)
     )
 
-    # Keep scores safely within 0-1.
-    correctness = max(
-        0.0,
-        min(1.0, correctness)
-    )
+    correctness = max(0.0, min(1.0, correctness))
+    relevance = max(0.0, min(1.0, relevance))
+    faithfulness = max(0.0, min(1.0, faithfulness))
 
-    relevance = max(
-        0.0,
-        min(1.0, relevance)
-    )
-
-    faithfulness = max(
-        0.0,
-        min(1.0, faithfulness)
-    )
-
-    # Weighted overall judge score.
     judge_score = (
         0.4 * correctness
         + 0.3 * relevance
