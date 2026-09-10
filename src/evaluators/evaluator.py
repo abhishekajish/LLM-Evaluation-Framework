@@ -8,16 +8,30 @@ def normalize_text(text):
     """
     Normalize text before comparison.
 
-    This makes evaluation less sensitive to:
-    - capitalization
-    - punctuation
-    - extra whitespace
+    The normalization removes superficial formatting
+    differences while preserving meaningful content.
     """
 
     text = text.lower().strip()
 
-    text = re.sub(r"[^\w\s$%.-]", "", text)
+    # Remove surrounding quotation marks and punctuation.
+    text = re.sub(
+        r'^[\s\'"“”‘’.,!?;:()\[\]{}]+|[\s\'"“”‘’.,!?;:()\[\]{}]+$',
+        '',
+        text
+    )
 
+    # Remove punctuation that does not affect meaning.
+    text = re.sub(
+        r"[^\w\s$%.-]",
+        "",
+        text
+    )
+
+    # Remove trailing sentence punctuation.
+    text = text.rstrip(".,!?;:")
+
+    # Normalize whitespace.
     text = re.sub(r"\s+", " ", text)
 
     return text
@@ -50,11 +64,11 @@ def semantic_similarity(predicted, expected):
     predicted = normalize_text(predicted)
     expected = normalize_text(expected)
 
-    # Handle identical answers directly
+    # Identical answers.
     if predicted == expected:
         return 1.0
 
-    # Handle empty responses
+    # Empty responses.
     if not predicted or not expected:
         return 0.0
 

@@ -7,8 +7,7 @@ DATASET_PATH = "data/raw/evaluation_dataset.json"
 
 MODELS = [
     "qwen",
-    "llama",
-    "llama70b"
+    "llama"
 ]
 
 

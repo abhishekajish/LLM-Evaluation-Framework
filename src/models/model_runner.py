@@ -5,7 +5,8 @@ OLLAMA_URL = "http://localhost:11434/api/generate"
 
 
 MODELS = {
-    "qwen": "qwen3:4b"
+    "qwen": "qwen3:4b",
+    "llama": "llama3.2:3b"
 }
 
 
@@ -21,7 +22,6 @@ def run_model(model_name, question, context=""):
 
     model = MODELS[model_name]
 
-    # Build prompt
     if context:
         prompt = f"""
 Context:
