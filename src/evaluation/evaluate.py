@@ -6,6 +6,7 @@ from src.evaluators.evaluator import (
     semantic_similarity
 )
 from src.evaluators.judge import judge_response
+from src.evaluators.hallucination import hallucination_score
 
 
 def evaluate_model(model_name, dataset):
@@ -44,6 +45,12 @@ def evaluate_model(model_name, dataset):
             model_response=response
         )
 
+        # Hallucination evaluation
+        hallucination = hallucination_score(
+            context=sample["context"],
+            response=response
+        )
+
         # Store result
         results.append({
             "id": sample["id"],
@@ -57,7 +64,8 @@ def evaluate_model(model_name, dataset):
             "judge_correctness": judge_scores["correctness"],
             "judge_relevance": judge_scores["relevance"],
             "judge_faithfulness": judge_scores["faithfulness"],
-            "judge_score": judge_scores["judge_score"]
+            "judge_score": judge_scores["judge_score"],
+            "hallucination_score": hallucination
         })
 
     return pd.DataFrame(results)

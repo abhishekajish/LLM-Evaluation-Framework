@@ -1,14 +1,45 @@
 import pandas as pd
 
 
+def calculate_composite_score(data):
+    """
+    Calculate a weighted composite score.
+
+    Weights:
+        25% Exact Match
+        30% Semantic Similarity
+        25% Judge Score
+        20% Hallucination Score
+
+    If a metric is not applicable (NaN), its weight
+    is excluded and the remaining weights are normalized.
+    """
+
+    metrics = {
+        "exact_match": 0.25,
+        "semantic_similarity": 0.30,
+        "judge_score": 0.25,
+        "hallucination_score": 0.20
+    }
+
+    weighted_score = 0.0
+    total_weight = 0.0
+
+    for metric, weight in metrics.items():
+
+        if pd.notna(data[metric]):
+            weighted_score += data[metric] * weight
+            total_weight += weight
+
+    if total_weight == 0:
+        return 0.0
+
+    return weighted_score / total_weight
+
+
 def generate_leaderboard(results):
     """
     Generate overall model leaderboard.
-
-    Composite score:
-        30% Exact Match
-        40% Semantic Similarity
-        30% Judge Score
     """
 
     leaderboard = (
@@ -17,14 +48,15 @@ def generate_leaderboard(results):
         .agg(
             exact_match=("exact_match", "mean"),
             semantic_similarity=("semantic_similarity", "mean"),
-            judge_score=("judge_score", "mean")
+            judge_score=("judge_score", "mean"),
+            hallucination_score=("hallucination_score", "mean")
         )
     )
 
-    leaderboard["composite_score"] = (
-        0.3 * leaderboard["exact_match"]
-        + 0.4 * leaderboard["semantic_similarity"]
-        + 0.3 * leaderboard["judge_score"]
+    # Calculate composite using normalized available metrics.
+    leaderboard["composite_score"] = leaderboard.apply(
+        calculate_composite_score,
+        axis=1
     )
 
     leaderboard = leaderboard.sort_values(
@@ -46,15 +78,16 @@ def generate_category_scores(results):
         .agg(
             exact_match=("exact_match", "mean"),
             semantic_similarity=("semantic_similarity", "mean"),
-            judge_score=("judge_score", "mean")
+            judge_score=("judge_score", "mean"),
+            hallucination_score=("hallucination_score", "mean")
         )
         .reset_index()
     )
 
-    category_scores["composite_score"] = (
-        0.3 * category_scores["exact_match"]
-        + 0.4 * category_scores["semantic_similarity"]
-        + 0.3 * category_scores["judge_score"]
+    # Calculate composite using only applicable metrics.
+    category_scores["composite_score"] = category_scores.apply(
+        calculate_composite_score,
+        axis=1
     )
 
     return category_scores
